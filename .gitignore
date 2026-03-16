@@ -1,0 +1,10 @@
+node_modules
+# Keep environment variables out of version control
+.env
+
+/app/generated/prisma
+.env.local
+.env.*.local
+.superpowers/
+.worktrees/
+.next/

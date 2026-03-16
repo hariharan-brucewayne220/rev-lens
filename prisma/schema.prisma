@@ -1,0 +1,368 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  admin
+  manager
+  rep
+}
+
+enum CallStatus {
+  pending
+  transcribing
+  analyzing
+  done
+  failed
+}
+
+enum RiskSeverity {
+  low
+  medium
+  high
+  critical
+}
+
+enum RenewalStatus {
+  active
+  at_risk
+  churned
+  renewed
+}
+
+enum ForecastCategory {
+  commit
+  best_case
+  pipeline
+  omitted
+}
+
+enum CRMEntityType {
+  account
+  contact
+  opportunity
+}
+
+enum CRMImportStatus {
+  processing
+  done
+  failed
+}
+
+model Organization {
+  id               String    @id @default(cuid())
+  name             String
+  plan             String    @default("free")
+  timezone         String    @default("America/New_York")
+  config           Json      @default("{}")
+  encryptedSecrets Json?
+  createdAt        DateTime  @default(now())
+
+  users              User[]
+  invites            Invite[]
+  accounts           Account[]
+  contacts           Contact[]
+  opportunities      Opportunity[]
+  calls              Call[]
+  proposals          Proposal[]
+  objections         Objection[]
+  competitorMentions CompetitorMention[]
+  buyingSignals      BuyingSignal[]
+  actionItems        ActionItem[]
+  risks              Risk[]
+  renewals           Renewal[]
+  coachingInsights   CoachingInsight[]
+  objectionClusters  ObjectionCluster[]
+  weeklyManagerSummaries WeeklyManagerSummary[]
+  forecastNarratives ForecastNarrative[]
+  crmImports         CRMImport[]
+}
+
+model User {
+  id        String    @id @default(cuid())
+  orgId     String
+  email     String
+  name      String
+  role      UserRole  @default(rep)
+  password  String?
+  createdAt DateTime  @default(now())
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, email])
+}
+
+model Invite {
+  id         String    @id @default(cuid())
+  orgId      String
+  email      String
+  role       UserRole  @default(rep)
+  token      String    @unique @default(cuid())
+  acceptedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  industry  String?
+  website   String?
+  crmId     String?
+
+  org       Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contacts  Contact[]
+  opportunities Opportunity[]
+  renewals  Renewal[]
+
+  @@unique([orgId, crmId])
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  orgId     String
+  accountId String
+  name      String
+  email     String?
+  title     String?
+  phone     String?
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  account   Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+model Opportunity {
+  id               String           @id @default(cuid())
+  orgId            String
+  accountId        String
+  ownerId          String
+  name             String
+  stage            String
+  amount           Decimal          @db.Decimal(12, 2)
+  closeDate        DateTime
+  healthScore      Int?
+  forecastCategory ForecastCategory @default(pipeline)
+  crmId            String?
+  createdAt        DateTime         @default(now())
+
+  org           Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  account       Account         @relation(fields: [accountId], references: [id])
+  calls              Call[]
+  actionItems        ActionItem[]
+  risks              Risk[]
+  renewals           Renewal[]
+  objections         Objection[]
+  competitorMentions CompetitorMention[]
+  buyingSignals      BuyingSignal[]
+  proposals          Proposal[]
+
+  @@unique([orgId, crmId])
+}
+
+model Call {
+  id            String     @id @default(cuid())
+  orgId         String
+  opportunityId String?
+  ownerId       String
+  audioPath     String
+  duration      Int?
+  status        CallStatus @default(pending)
+  summary       String?
+  failureReason String?
+  createdAt     DateTime   @default(now())
+
+  org          Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  opportunity  Opportunity?   @relation(fields: [opportunityId], references: [id])
+  transcript   Transcript?
+  objections   Objection[]
+  competitorMentions CompetitorMention[]
+  buyingSignals BuyingSignal[]
+  actionItems  ActionItem[]
+  risks        Risk[]
+  coachingInsights CoachingInsight[]
+}
+
+model Transcript {
+  id       String @id @default(cuid())
+  callId   String @unique
+  segments Json
+
+  call     Call   @relation(fields: [callId], references: [id], onDelete: Cascade)
+}
+
+model Objection {
+  id            String   @id @default(cuid())
+  orgId         String
+  callId        String
+  opportunityId String?
+  text          String
+  category      String
+  createdAt     DateTime @default(now())
+
+  org         Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  call        Call          @relation(fields: [callId], references: [id], onDelete: Cascade)
+  opportunity Opportunity?  @relation(fields: [opportunityId], references: [id])
+}
+
+model CompetitorMention {
+  id             String   @id @default(cuid())
+  orgId          String
+  callId         String
+  opportunityId  String?
+  competitorName String
+  context        String
+  createdAt      DateTime @default(now())
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  call        Call         @relation(fields: [callId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id])
+}
+
+model BuyingSignal {
+  id            String   @id @default(cuid())
+  orgId         String
+  callId        String
+  opportunityId String?
+  text          String
+  signalType    String
+  createdAt     DateTime @default(now())
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  call        Call         @relation(fields: [callId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id])
+}
+
+model Proposal {
+  id            String   @id @default(cuid())
+  orgId         String
+  opportunityId String
+  title         String
+  filePath      String
+  createdAt     DateTime @default(now())
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  opportunity Opportunity  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+}
+
+model ActionItem {
+  id               String    @id @default(cuid())
+  orgId            String
+  callId           String
+  opportunityId    String?
+  text             String
+  assignedToRole   String
+  ownerId          String?
+  dueDate          DateTime?
+  done             Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  call        Call         @relation(fields: [callId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id])
+}
+
+model Risk {
+  id            String       @id @default(cuid())
+  orgId         String
+  opportunityId String
+  callId        String?
+  type          String
+  severity      RiskSeverity
+  description   String
+  createdAt     DateTime     @default(now())
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  opportunity Opportunity  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  call        Call?        @relation(fields: [callId], references: [id])
+}
+
+model Renewal {
+  id             String        @id @default(cuid())
+  orgId          String
+  accountId      String
+  opportunityId  String?
+  arr            Decimal       @db.Decimal(12, 2)
+  renewalDate    DateTime
+  churnRiskScore Int?
+  status         RenewalStatus @default(active)
+  createdAt      DateTime      @default(now())
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  account     Account      @relation(fields: [accountId], references: [id])
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id])
+}
+
+model CoachingInsight {
+  id       String @id @default(cuid())
+  orgId    String
+  callId   String
+  userId   String
+  content  String
+  category String
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  call Call         @relation(fields: [callId], references: [id], onDelete: Cascade)
+}
+
+model ObjectionCluster {
+  id       String   @id @default(cuid())
+  orgId    String
+  theme    String
+  count    Int
+  examples Json
+  weekOf   DateTime
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, theme, weekOf])
+}
+
+model WeeklyManagerSummary {
+  id          String   @id @default(cuid())
+  orgId       String
+  weekOf      DateTime
+  content     String
+  generatedAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, weekOf])
+}
+
+model ForecastNarrative {
+  id             String   @id @default(cuid())
+  orgId          String
+  weekOf         DateTime
+  content        String
+  totalCommit    Decimal  @db.Decimal(12, 2)
+  totalBestCase  Decimal  @db.Decimal(12, 2)
+  totalPipeline  Decimal  @db.Decimal(12, 2)
+  generatedAt    DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, weekOf])
+}
+
+model CRMImport {
+  id          String          @id @default(cuid())
+  orgId       String
+  importedBy  String
+  entityType  CRMEntityType
+  fileName    String
+  rowsTotal   Int             @default(0)
+  rowsSuccess Int             @default(0)
+  rowsFailed  Int             @default(0)
+  errorRows   Json            @default("[]")
+  status      CRMImportStatus @default(processing)
+  createdAt   DateTime        @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
