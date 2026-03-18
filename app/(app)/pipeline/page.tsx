@@ -3,7 +3,7 @@ import { getSession } from '@/lib/auth'
 import { KanbanBoard } from '@/components/pipeline/kanban-board'
 import type { UserScope } from '@/lib/types'
 
-export const STAGES = [
+const STAGES = [
   'Prospecting',
   'Qualification',
   'Demo',

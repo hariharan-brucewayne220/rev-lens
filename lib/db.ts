@@ -39,10 +39,12 @@ export async function getCall(scope: UserScope, id: string) {
     where: { id, orgId: scope.orgId, ...repFilter(scope) },
     include: {
       transcript: true,
+      opportunity: true,
       objections: true,
       competitorMentions: true,
       buyingSignals: true,
       actionItems: true,
+      risks: true,
       coachingInsights: true,
     },
   })
