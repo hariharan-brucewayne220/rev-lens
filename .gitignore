@@ -9,3 +9,4 @@ node_modules
 .worktrees/
 .next/
 docs/superpowers/
+CREDENTIALS.txt

@@ -5,33 +5,42 @@ import { decryptSecrets } from '@/lib/secrets'
 import { z } from 'zod'
 
 const analysisSchema = z.object({
-  summary: z.string(),
+  summary: z.string().default(''),
   objections: z.array(z.object({
     text: z.string(),
-    category: z.enum(['pricing', 'timing', 'competitor', 'technical', 'other']),
-  })),
+    category: z.string().transform((v) => {
+      const map: Record<string, string> = { pricing: 'pricing', cost: 'pricing', roi: 'pricing', timing: 'timing', competitor: 'competitor', technical: 'technical' }
+      return map[v.toLowerCase()] ?? 'other'
+    }),
+  })).default([]),
   competitorMentions: z.array(z.object({
     competitorName: z.string(),
     context: z.string(),
-  })),
+  })).default([]),
   buyingSignals: z.array(z.object({
     text: z.string(),
     signalType: z.string(),
-  })),
+  })).default([]),
   actionItems: z.array(z.object({
     text: z.string(),
-    assignedToRole: z.enum(['rep', 'prospect', 'unknown']),
-  })),
+    assignedToRole: z.string().transform((v) => {
+      if (v === 'rep' || v === 'prospect') return v
+      return 'unknown'
+    }),
+  })).default([]),
   risks: z.array(z.object({
     type: z.string(),
-    severity: z.enum(['low', 'medium', 'high', 'critical']),
+    severity: z.string().transform((v) => {
+      if (['low', 'medium', 'high', 'critical'].includes(v.toLowerCase())) return v.toLowerCase()
+      return 'medium'
+    }),
     description: z.string(),
-  })),
+  })).default([]),
   coachingInsights: z.array(z.object({
     content: z.string(),
     category: z.string(),
-  })),
-  healthScoreDelta: z.number().min(-20).max(20),
+  })).default([]),
+  healthScoreDelta: z.number().min(-20).max(20).default(0),
 })
 
 type Analysis = z.infer<typeof analysisSchema>
@@ -44,13 +53,35 @@ async function getOpenAIClient(orgId: string): Promise<OpenAI> {
   return new OpenAI({ apiKey })
 }
 
-const SYSTEM_PROMPT = `You are a sales intelligence analyst. Analyze the provided call transcript and extract structured insights.
+const SYSTEM_PROMPT = `You are a sales intelligence analyst. Analyze the provided call transcript and return ONLY a JSON object with exactly this structure:
 
-For healthScoreDelta: rate the call's impact on deal health from -20 (very negative) to +20 (very positive).
-For objection categories use: pricing, timing, competitor, technical, other.
-For buying signals include: budget confirmed, timeline set, champion identified, next steps agreed, etc.
-For coaching insights use categories: talk_ratio, discovery, objection_handling, closing, rapport.
-Return only valid JSON matching the schema. Arrays may be empty if nothing applies.`
+{
+  "summary": "2-3 sentence summary of the call",
+  "objections": [
+    { "text": "exact objection text", "category": "pricing|timing|competitor|technical|other" }
+  ],
+  "competitorMentions": [
+    { "competitorName": "name", "context": "how they were mentioned" }
+  ],
+  "buyingSignals": [
+    { "text": "signal description", "signalType": "budget_confirmed|timeline_set|champion_identified|next_steps_agreed|other" }
+  ],
+  "actionItems": [
+    { "text": "action description", "assignedToRole": "rep|prospect|unknown" }
+  ],
+  "risks": [
+    { "type": "risk type", "severity": "low|medium|high|critical", "description": "description" }
+  ],
+  "coachingInsights": [
+    { "content": "coaching tip", "category": "talk_ratio|discovery|objection_handling|closing|rapport" }
+  ],
+  "healthScoreDelta": 0
+}
+
+Rules:
+- All arrays may be empty [] if nothing applies
+- healthScoreDelta is an integer from -20 to +20
+- Return ONLY the JSON object, no markdown, no explanation`
 
 export const analyzeCall = inngest.createFunction(
   { id: 'analyze-call', retries: 2 },
@@ -88,9 +119,36 @@ export const analyzeCall = inngest.createFunction(
       })
 
       const raw = JSON.parse(response.choices[0].message.content ?? '{}')
-      const parsed = analysisSchema.safeParse(raw)
+
+      // Normalize: GPT-4o sometimes returns arrays of strings instead of objects
+      const normalized = {
+        summary: raw.summary ?? '',
+        objections: (raw.objections ?? []).map((o: unknown) =>
+          typeof o === 'string' ? { text: o, category: 'other' } : o
+        ),
+        competitorMentions: (raw.competitorMentions ?? []).map((c: unknown) =>
+          typeof c === 'string' ? { competitorName: c, context: '' } : c
+        ),
+        buyingSignals: (raw.buyingSignals ?? []).map((b: unknown) =>
+          typeof b === 'string' ? { text: b, signalType: 'other' } : b
+        ),
+        actionItems: (raw.actionItems ?? []).map((a: unknown) =>
+          typeof a === 'string' ? { text: a, assignedToRole: 'unknown' } : a
+        ),
+        risks: (raw.risks ?? []).map((r: unknown) =>
+          typeof r === 'string' ? { type: 'other', severity: 'medium', description: r } : r
+        ),
+        coachingInsights: (raw.coachingInsights ?? []).map((c: unknown) =>
+          typeof c === 'string' ? { content: c, category: 'other' } : c
+        ),
+        healthScoreDelta: raw.healthScoreDelta ?? 0,
+      }
+
+      const parsed = analysisSchema.safeParse(normalized)
       if (!parsed.success) {
-        // Return safe defaults if schema mismatch
+        console.error('Analysis schema mismatch:', JSON.stringify(parsed.error.issues))
+        console.error('Raw GPT response:', JSON.stringify(raw))
+        // Return safe defaults rather than failing
         return {
           summary: raw.summary ?? '',
           objections: [],

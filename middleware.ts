@@ -21,7 +21,7 @@ export default withAuth(
     callbacks: {
       authorized: ({ token, req }) => {
         // Public routes — no auth required
-        const pub = ['/auth/', '/api/auth/', '/api/bootstrap']
+        const pub = ['/auth/', '/api/auth/', '/api/bootstrap', '/api/inngest']
         if (pub.some((p) => req.nextUrl.pathname.startsWith(p))) return true
         return !!token
       },
