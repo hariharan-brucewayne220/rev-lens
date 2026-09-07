@@ -30,8 +30,9 @@ const analysisSchema = z.object({
   })).default([]),
   risks: z.array(z.object({
     type: z.string(),
-    severity: z.string().transform((v) => {
-      if (['low', 'medium', 'high', 'critical'].includes(v.toLowerCase())) return v.toLowerCase()
+    severity: z.string().transform((v): 'low' | 'medium' | 'high' | 'critical' => {
+      const s = v.toLowerCase()
+      if (s === 'low' || s === 'medium' || s === 'high' || s === 'critical') return s
       return 'medium'
     }),
     description: z.string(),

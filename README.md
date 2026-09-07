@@ -11,6 +11,20 @@ A multi-tenant B2B revenue intelligence platform that gives sales teams AI-power
 - **Admin Panel** — Invite management, user roles, and encrypted OpenAI key configuration
 - **Role-based access** — Admin / Manager / Rep scoping enforced at middleware and query layer
 
+## Status
+
+Implemented and working end to end:
+
+- Dashboard, Pipeline (Kanban), Calls (upload, list, AI-analyzed detail), Admin (invites, users, CRM import, OpenAI key)
+- Auth (credentials + Google OAuth, invite-only signup), bootstrap of the first org/admin
+- The Whisper → GPT-4o → health-score Inngest pipeline
+
+Placeholder pages only (linked from the sidebar, render "Coming soon"):
+
+- Accounts (`/accounts`), Forecast (`/forecast`), Renewals (`/renewals`), Team (`/team`)
+
+The Prisma schema also defines models with no UI or code path yet (Proposal, ObjectionCluster, WeeklyManagerSummary, ForecastNarrative).
+
 ## Tech Stack
 
 | Layer | Choice |
@@ -97,10 +111,10 @@ npx inngest-cli@latest dev    # Inngest on :8288 (separate terminal)
 ```bash
 curl -X POST http://localhost:3000/api/bootstrap \
   -H "Content-Type: application/json" \
-  -d '{"orgName":"Acme","name":"Your Name","email":"you@example.com","password":"yourpassword"}'
+  -d '{"orgName":"Acme","adminName":"Your Name","adminEmail":"you@example.com","adminPassword":"yourpassword"}'
 ```
 
-Set `ALLOW_BOOTSTRAP_SIGNUP=false` after this. All subsequent signups require an admin invite.
+The route requires all four fields and a password of at least 8 characters. Set `ALLOW_BOOTSTRAP_SIGNUP=false` after this. All subsequent signups require an admin invite.
 
 ## Project Structure
 
@@ -111,6 +125,10 @@ app/
     pipeline/     # Drag-and-drop Kanban board
     calls/        # Upload, list, and AI-analyzed call detail
     admin/        # Invites, users, CRM import, OpenAI key
+    accounts/     # Stub ("Coming soon")
+    forecast/     # Stub ("Coming soon")
+    renewals/     # Stub ("Coming soon")
+    team/         # Stub ("Coming soon")
   auth/           # Sign-in / sign-up pages
   api/
     auth/         # NextAuth handler
