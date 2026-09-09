@@ -36,7 +36,7 @@ The Prisma schema also defines models with no UI or code path yet (Proposal, Obj
 | AI | OpenAI Whisper (transcription) + GPT-4o (structured analysis) |
 | Background jobs | Inngest (event-driven, no Redis required) |
 | UI | Tailwind CSS + Radix UI + Lucide |
-| Testing | Vitest (13 tests) |
+| Testing | Vitest (17 tests) |
 
 ## AI Pipeline
 
@@ -163,7 +163,7 @@ lib/
 prisma/
   schema.prisma   # 20-model schema
 tests/
-  api/            # Vitest integration tests (13 passing)
+  api/            # Vitest integration tests (17 passing)
 ```
 
 ## Scripts

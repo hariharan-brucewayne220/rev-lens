@@ -5,6 +5,14 @@ import { compare, hash } from 'bcryptjs'
 import prisma from '@/lib/prisma'
 import type { SessionUser } from '@/lib/types'
 
+// User email is only unique per org (@@unique([orgId, email])), so the same address
+// can exist in several tenants. findFirst would resolve it by physical row order and
+// silently sign the user into an arbitrary org, so match only an unambiguous address.
+async function findUserByEmail(email: string) {
+  const users = await prisma.user.findMany({ where: { email: email.toLowerCase() }, take: 2 })
+  return users.length === 1 ? users[0] : null
+}
+
 export const authOptions: NextAuthOptions = {
   session: { strategy: 'jwt' },
   pages: {
@@ -20,9 +28,7 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
-        const user = await prisma.user.findFirst({
-          where: { email: credentials.email.toLowerCase() },
-        })
+        const user = await findUserByEmail(credentials.email)
         if (!user?.password) return null
         const valid = await compare(credentials.password, user.password)
         if (!valid) return null
@@ -42,7 +48,7 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account }) {
       // Google OAuth: reject if user hasn't been invited (no DB record)
       if (account?.provider === 'google') {
-        const existing = await prisma.user.findFirst({ where: { email: user.email! } })
+        const existing = await findUserByEmail(user.email!)
         if (!existing) return '/auth/signin?error=not_invited'
       }
       return true
@@ -56,7 +62,7 @@ export const authOptions: NextAuthOptions = {
       }
       if (account?.provider === 'google' && !token.orgId) {
         // Google OAuth — look up our DB record to get orgId + role
-        const dbUser = await prisma.user.findFirst({ where: { email: token.email! } })
+        const dbUser = await findUserByEmail(token.email!)
         if (dbUser) {
           token.id = dbUser.id
           token.orgId = dbUser.orgId
